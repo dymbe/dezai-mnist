@@ -83,7 +83,6 @@ def experiment(batch_size,
                testset_size,
                epochs,
                subepochs,
-               num_tests,
                plot):
     torch.manual_seed(0)
     device = torch.device("cuda")
@@ -147,10 +146,10 @@ def experiment(batch_size,
         x = range(epoch + 1)
         y1 = avg_model_scores[:epoch + 1]
         y2 = majority_vote_scores[:epoch + 1]
-        y3 = model_scores[:, :num_tests].max(axis=1)[:epoch + 1]
-        y4 = model_scores[:, :num_tests].min(axis=1)[:epoch + 1]
-        y5 = model_scores[:, :num_tests].mean(axis=1)[:epoch + 1]
-        stds = model_scores[:, :num_tests].std(axis=1)[:epoch + 1]
+        y3 = model_scores.max(axis=1)[:epoch + 1]
+        y4 = model_scores.min(axis=1)[:epoch + 1]
+        y5 = model_scores.mean(axis=1)[:epoch + 1]
+        stds = model_scores.std(axis=1)[:epoch + 1]
 
         plt.plot(x, y1, c="red", label="Aggregated (average) model")
         plt.plot(x, y2, c="purple", label="Majority vote")
@@ -167,9 +166,8 @@ def experiment(batch_size,
 if __name__ == '__main__':
     experiment(batch_size=32,
                batches_per_client=2,
-               dataset_size=60000,
-               testset_size=10000,
+               dataset_size=12800,
+               testset_size=1000,
                epochs=20,
-               subepochs=5,
-               num_tests=100,
+               subepochs=1,
                plot=False)
