@@ -1,4 +1,3 @@
-from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -8,15 +7,12 @@ import torch.utils.data
 import copy
 from torchvision import datasets, transforms
 from mnistnn import Net
-from utils import average_models, average_optimizers, most_frequent_in_rows
+from utils import average_models, most_frequent_in_rows, wmv, wmv_real
 
 
-def train_models(models, train_loaders, device, subepochs, optimizer_params=None):
+def train_models(models, train_loaders, device, subepochs):
     models = [model.to(device) for model in models]
     optimizers = [optim.Adam(model.parameters()) for model in models]
-    if optimizer_params is not None:
-        for optimizer in optimizers:
-            optimizer.param_groups[0]["params"] = optimizer_params
 
     for i, model in enumerate(models):
         for epoch in range(subepochs):
@@ -28,10 +24,7 @@ def train_models(models, train_loaders, device, subepochs, optimizer_params=None
                 loss = F.mse_loss(output, one_hot_targets)
                 loss.backward()
                 optimizers[i].step()
-
-    avg_params = average_optimizers(optimizers)
-
-    return [model.cpu() for model in models], avg_params
+    return [model.cpu() for model in models]
 
 
 def train_and_return(model, train_loader, device, subepochs, plot=True):
@@ -65,14 +58,12 @@ def test(model, device, test_loader):
             output = model(inputs)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max probability
             correct += pred.eq(targets.view_as(pred)).sum().item()
-    print('Accuracy: {}/{} ({:.0f}%)'.format(correct, len(test_loader.dataset),
-                                             100. * correct / len(test_loader.dataset)))
-    return 100. * correct / len(test_loader.dataset)
+    return correct / len(test_loader.dataset)
 
 
 def all_outputs(models, device, test_loader):
     models = [model.to(device) for model in models]
-    results = np.empty((len(test_loader.dataset), len(models)))
+    results = np.empty((len(test_loader.dataset), len(models), 10))
     all_targets = np.empty((len(test_loader.dataset), 1))
 
     with torch.no_grad():
@@ -82,9 +73,7 @@ def all_outputs(models, device, test_loader):
             end = y + len(inputs)
             all_targets[y:end, 0] = targets.cpu()
             for x, model in enumerate(models):
-                output = model(inputs)
-                pred = output.argmax(dim=1)  # get the index of the max probability
-                results[y:end, x] = pred.cpu()
+                results[y:end, x] = model(inputs).cpu()
             y = end
     return results, all_targets
 
@@ -129,43 +118,68 @@ def experiment(batch_size,
     test_loader = torch.utils.data.DataLoader(x_test, **kwargs)
 
     avg_model_scores = np.zeros(epochs)
-    majority_vote_scores = np.zeros(epochs)
+    mv_scores = np.zeros(epochs)
+    wmv_scores = np.zeros(epochs)
+    wmv_real_scores = np.zeros(epochs)
+    wmv_real_scores2 = np.zeros(epochs)
+    wmv_real_scores3 = np.zeros(epochs)
+    wmv_real_scores4 = np.zeros(epochs)
     model_scores = np.zeros((epochs, n_clients))
 
     avg_model = Net()
-    optimizer_params = None
+    models = [copy.deepcopy(avg_model) for _ in range(n_clients)]
 
     for epoch in range(epochs):
         print(f"Epoch {epoch}")
-        models = [copy.deepcopy(avg_model) for _ in range(n_clients)]
-        models, optimizer_params = train_models(models, train_loaders, device, subepochs, optimizer_params=optimizer_params)
+        # models = [copy.deepcopy(avg_model) for _ in range(n_clients)]
+        models = train_models(models, train_loaders, device, subepochs)
         avg_model = average_models(models)
 
         avg_model_scores[epoch] = test(avg_model, device, test_loader)
 
         outputs, targets = all_outputs(models, device, test_loader)
+        predictions = outputs.argmax(axis=2)
 
-        majority_vote = most_frequent_in_rows(outputs)
-        majority_vote_scores[epoch] = 100 * np.mean(majority_vote == targets)
+        majority_vote = most_frequent_in_rows(predictions)
+        mv_scores[epoch] = np.mean(majority_vote == targets)
+        wmv_scores[epoch] = np.mean(wmv(outputs, targets) == targets)
 
-        model_scores[epoch, :] = 100 * np.mean(outputs == targets, axis=0)
+        bs = [0.05, 0.2, 0.5, 0.9]
+        wmv_real_scores[epoch] = np.mean(wmv_real(outputs, targets, b=bs[0]) == targets)
+        wmv_real_scores2[epoch] = np.mean(wmv_real(outputs, targets, b=bs[1]) == targets)
+        wmv_real_scores3[epoch] = np.mean(wmv_real(outputs, targets, b=bs[2]) == targets)
+        wmv_real_scores4[epoch] = np.mean(wmv_real(outputs, targets, b=bs[3]) == targets)
+
+        model_scores[epoch, :] = np.mean(predictions == targets, axis=0)
+
+        print("avg={:.2f}, std={:.2f}".format(100 * model_scores[epoch].mean(), 100 * model_scores[epoch].std()))
 
         x = range(epoch + 1)
-        y1 = avg_model_scores[:epoch + 1]
-        y2 = majority_vote_scores[:epoch + 1]
-        y3 = model_scores.max(axis=1)[:epoch + 1]
-        y4 = model_scores.min(axis=1)[:epoch + 1]
-        y5 = model_scores.mean(axis=1)[:epoch + 1]
-        stds = model_scores.std(axis=1)[:epoch + 1]
+        y1 = 100 * avg_model_scores[:epoch + 1]
+        y2 = 100 * mv_scores[:epoch + 1]
+        y3 = 100 * wmv_scores[:epoch + 1]
+        y4 = 100 * wmv_real_scores[:epoch + 1]
+        y4_2 = 100 * wmv_real_scores[:epoch + 1]
+        y4_3 = 100 * wmv_real_scores[:epoch + 1]
+        y4_4 = 100 * wmv_real_scores[:epoch + 1]
+        y5 = 100 * model_scores.max(axis=1)[:epoch + 1]
+        y6 = 100 * model_scores.min(axis=1)[:epoch + 1]
+        y7 = 100 * model_scores.mean(axis=1)[:epoch + 1]
+        stds = 100 * model_scores.std(axis=1)[:epoch + 1]
 
-        plt.plot(x, y1, c="red", label="Aggregated (average) model")
+        # plt.plot(x, y1, c="red", label="Aggregated (average) model")
         plt.plot(x, y2, c="purple", label="Majority vote")
-        plt.plot(x, y3, c="green", label="Best individual model")
-        plt.plot(x, y4, c="orange", label="Worst individual model")
-        plt.errorbar(x, y5, yerr=stds, c="blue", label="Average of individual models")
+        plt.plot(x, y3, c="teal", label="Weighted majority vote")
+        plt.plot(x, y4, c="black", label="Weighted majority vote 2, b={}".format(bs[0]))
+        plt.plot(x, y4_2, c="gray", label="Weighted majority vote 2, b={}".format(bs[1]))
+        plt.plot(x, y4_3, c="green", label="Weighted majority vote 2, b={}".format(bs[2]))
+        plt.plot(x, y4_4, c="orange", label="Weighted majority vote 2, b={}".format(bs[3]))
+        # plt.plot(x, y5, c="green", label="Best individual model")
+        # plt.plot(x, y6, c="orange", label="Worst individual model")
+        plt.errorbar(x, y7, yerr=stds, c="blue", label="Average of individual models")
         plt.legend()
         plt.title(f"|x_train|={dataset_size}, |x_test|={testset_size}, batch_size={batch_size}, batches_per_client={batches_per_client}")
-        plt.ylim(0, 100)
+        #plt.ylim(0, 100)
         plt.xlabel("Epoch")
         plt.ylabel("Score (%)")
         plt.show()
@@ -174,7 +188,7 @@ def experiment(batch_size,
 if __name__ == '__main__':
     experiment(batch_size=32,
                batches_per_client=2,
-               dataset_size=12800,
-               testset_size=1000,
-               epochs=20,
-               subepochs=1)
+               dataset_size=640,
+               testset_size=100,
+               epochs=5,
+               subepochs=10)

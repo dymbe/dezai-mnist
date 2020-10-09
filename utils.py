@@ -27,3 +27,27 @@ def average_optimizers(optimizers):
         mean = torch.mean(layers_i, dim=0)
         mean_params.append(mean)
     return mean_params
+
+
+def wmv(outputs, targets):
+    num_models = outputs.shape[1]
+    weights = np.ones(num_models)
+    predictions = np.empty(targets.shape)
+    for y, target in enumerate(targets):
+        votes = np.zeros(outputs.shape[2])
+        for x, _ in enumerate(outputs[y]):
+            votes += weights[x] * outputs[y, x]
+            weights[x] = np.mean(outputs[:y + 1, x].argmax(axis=1) == targets[:y + 1, 0])
+        predictions[y, 0] = votes.argmax()
+    return predictions
+
+
+def wmv_real(outputs, targets, b):
+    num_models = outputs.shape[1]
+    weights = np.ones(num_models)
+    predictions = np.empty(targets.shape)
+    for y, _ in enumerate(targets):
+        score = np.sum((outputs[y].T * weights).T, axis=0)
+        predictions[y, 0] = score.argmax()
+        weights *= 1 - b * (outputs[y].argmax(axis=1) != targets[y, 0])
+    return predictions
