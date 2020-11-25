@@ -1,13 +1,13 @@
 import numpy as np
 import copy
-import torch
 
 
-def most_frequent_in_rows(a):
-    out = np.empty((a.shape[0], 1))
-    for i, row in enumerate(a):
-        out[i, 0] = np.bincount(row.astype(int)).argmax()
-    return out
+def mv(outputs):
+    predictions = np.empty(len(outputs))
+    for i, row in enumerate(outputs):
+        counts = np.bincount(row.argmax(axis=1))
+        predictions[i] = counts.argmax()
+    return predictions
 
 
 def average_models(models):
@@ -19,35 +19,58 @@ def average_models(models):
     return model
 
 
-def average_optimizers(optimizers):
-    optimizer_params = [optimizer.param_groups[0]["params"] for optimizer in optimizers]
-    mean_params = []
-    for i in range(len(optimizer_params[0])):
-        layers_i = torch.stack([p[i] for p in optimizer_params])
-        mean = torch.mean(layers_i, dim=0)
-        mean_params.append(mean)
-    return mean_params
-
-
-def wmv(outputs, targets):
-    num_models = outputs.shape[1]
-    weights = np.ones(num_models)
-    predictions = np.empty(targets.shape)
-    for y, target in enumerate(targets):
-        votes = np.zeros(outputs.shape[2])
-        for x, _ in enumerate(outputs[y]):
-            votes += weights[x] * outputs[y, x]
-            weights[x] = np.mean(outputs[:y + 1, x].argmax(axis=1) == targets[:y + 1, 0])
-        predictions[y, 0] = votes.argmax()
-    return predictions
-
-
-def wmv_real(outputs, targets, b):
-    num_models = outputs.shape[1]
-    weights = np.ones(num_models)
+def wmv_cma(outputs, targets):  # https://en.wikipedia.org/wiki/Moving_average#Cumulative_moving_average
+    weights = np.ones(outputs.shape[1])
     predictions = np.empty(targets.shape)
     for y, _ in enumerate(targets):
-        score = np.sum((outputs[y].T * weights).T, axis=0)
-        predictions[y, 0] = score.argmax()
-        weights *= 1 - b * (outputs[y].argmax(axis=1) != targets[y, 0])
+        if np.all(weights == 0):
+            votes = np.sum(outputs[y], axis=0)
+        else:
+            votes = np.sum((outputs[y].T * weights).T, axis=0)
+        predictions[y, 0] = votes.argmax()
+
+        scores = outputs[y].argmax(axis=1) == targets[y]
+        weights = (scores + y * weights) / (y + 1)  # Cumulative moving average score
     return predictions
+
+
+def wmv_sma(outputs, targets, n=50):  # https://en.wikipedia.org/wiki/Moving_average#Simple_moving_average
+    weights = np.ones(outputs.shape[1])
+    predictions = np.empty(targets.shape)
+    all_scores = []
+
+    for y, _ in enumerate(targets):
+        if np.all(weights == 0):
+            votes = np.sum(outputs[y], axis=0)
+        else:
+            votes = np.sum((outputs[y].T * weights).T, axis=0)
+
+        predictions[y] = votes.argmax()
+        #print("\t".join(["{:.2f}".format(x) for x in list(votes)]), "->", int(predictions[y][0]), ":", int(targets[y][0]))
+
+        new_score = 1 * (outputs[y].argmax(axis=1) == targets[y])
+
+        if y < n:
+            weights = (new_score + y * weights) / (y + 1)
+        else:
+            a = all_scores.pop(0)
+            weights += (new_score - a) / n
+
+        all_scores.append(new_score)
+
+    return predictions
+
+
+def wmv(outputs, targets, b):
+    weights = np.ones(outputs.shape[1])
+    predictions = np.empty(targets.shape)
+    for y, _ in enumerate(targets):
+        votes = np.sum((outputs[y].T * weights).T, axis=0)
+        predictions[y] = votes.argmax()
+        weights *= 1 - b * (outputs[y].argmax(axis=1) != targets[y])
+    return predictions
+
+
+def mv_wrong(outputs):
+    votes = np.sum(outputs, axis=1)
+    return np.argmax(votes, axis=1)
