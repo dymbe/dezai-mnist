@@ -11,7 +11,7 @@ from copy import deepcopy
 
 
 class MnistNN(Model):
-    def __init__(self, device=torch.device("cuda")):
+    def __init__(self, device=torch.device("cuda"), state_path=None):
         self.device = device
         self.net = nn.Sequential(  # sequential operation
             nn.Flatten(),
@@ -19,6 +19,9 @@ class MnistNN(Model):
             nn.ReLU(),
             nn.Linear(64, 10),
             nn.Softmax(dim=1))
+        if state_path is not None:
+            state_dict = torch.load(state_path)
+            self.net.load_state_dict(state_dict)
 
     def train(self, train_loader, epochs=10, verbose=False, plot=False) -> None:
         net = self.net.to(self.device)
@@ -86,33 +89,3 @@ class MnistNN(Model):
                 outputs[y:end] = net(inputs).cpu()
                 y = end
         return outputs
-
-    def load(self, path):
-        state_dict = torch.load(path)
-        self.net.load_state_dict(state_dict)
-
-    # def predict(self, inputs) -> np.ndarray:
-    #     net = self.net.to(self.device)
-    #     results = np.empty((len(test_loader.dataset), 1))
-    #
-    #     with torch.no_grad():
-    #         y = 0
-    #         for inputs, targets in test_loader:
-    #             inputs, targets = inputs.to(self.device), targets.to(self.device)
-    #             end = y + len(inputs)
-    #             pred = net(inputs).argmax(dim=1)  # get the index of the max probability
-    #             results[y:end, 0] = pred.cpu()
-    #             y = end
-    #     return results
-
-
-if __name__ == '__main__':
-    torch.manual_seed(0)
-    np.random.seed(0)
-
-    xs = trainset(12000)
-    ys = testset(10000)
-
-    my_net = MnistNN()
-    my_net.train(xs, epochs=5, verbose=True, plot=False)
-    print(my_net.test_score(ys))
