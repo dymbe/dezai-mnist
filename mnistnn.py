@@ -5,15 +5,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from datasets import trainset, random_trainset, testset
 import matplotlib.pyplot as plt
-from copy import deepcopy
 
 
 class MnistNN(Model):
     def __init__(self, device=torch.device("cuda"), state_path=None):
         self.device = device
-        self.net = nn.Sequential(  # sequential operation
+        self.net = nn.Sequential(
             nn.Flatten(),
             nn.Linear(784, 64),
             nn.ReLU(),
@@ -26,7 +24,6 @@ class MnistNN(Model):
     def train(self, train_loader, epochs=10, verbose=False, plot=False) -> None:
         net = self.net.to(self.device)
         optimizer = optim.Adam(self.net.parameters())
-        test_loss = []
         avg_epoch_loss = []
 
         for epoch in range(epochs):
@@ -45,9 +42,6 @@ class MnistNN(Model):
                 optimizer.step()
             if plot:
                 avg_epoch_loss.append(np.mean(losses))
-                print(my_net.test_score(ys))
-                test_loss.append(self.test_loss(testset(10000)))
-                plt.plot(test_loss, c="red")
                 plt.plot(avg_epoch_loss, c="blue")
                 plt.show()
 
