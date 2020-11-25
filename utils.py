@@ -5,7 +5,7 @@ import copy
 def mv(outputs):
     predictions = np.empty(len(outputs))
     for i, row in enumerate(outputs):
-        counts = np.bincount(row.argmax(axis=1))
+        counts = np.bincount(row.argmax(axis=1), minlength=10)
         predictions[i] = counts.argmax()
     return predictions
 
