@@ -2,7 +2,7 @@ import torch
 import os
 import numpy as np
 from datasets import get_targets
-from mnistnn import MnistNN, load_model
+from mnistnn import MnistNN
 from datasets import testset
 
 
@@ -43,8 +43,7 @@ def load_models(model_dir):
     dir_path = f"models/{model_dir}"
     models = []
     for file in os.listdir(dir_path):
-        model = MnistNN()
-        model.net.load_state_dict(torch.load(f"{dir_path}/{file}"))
+        model = MnistNN(state_path=f"{dir_path}/{file}")
         models.append(model)
     return models
 
