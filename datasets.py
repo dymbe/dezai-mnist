@@ -26,39 +26,39 @@ def sorted_indices(dataset):
     return labels.argsort()
 
 
-def trainset(size):
+def trainset(size=60000):
     dataset = mnist_train()
     subset = Subset(dataset, range(size))
     return DataLoader(subset, **kwargs)
 
 
-def random_trainset(size):
+def random_trainset(size=60000):
     dataset = mnist_train()
     random_indices = np.random.choice(range(len(dataset)), size=size, replace=False)
     subset = Subset(dataset, random_indices)
     return DataLoader(subset, **kwargs)
 
 
-def testset(size):
+def testset(size=10000):
     dataset = mnist_test()
     subset = Subset(dataset, range(size))
     return DataLoader(subset, **kwargs)
 
 
-def sorted_testset(size):
+def sorted_testset(size=10000):
     dataset = mnist_test()
     subset = Subset(dataset, sorted_indices(dataset)[:size])
     return DataLoader(subset, **kwargs)
 
 
-def randomized_testset(size):
+def randomized_testset(size=10000):
     dataset = mnist_test()
     random_indices = np.random.choice(range(len(dataset)), size=size, replace=False)
     subset = Subset(dataset, random_indices)
     return DataLoader(subset, **kwargs)
 
 
-def random_subsets(subsets, total_size):
+def random_subsets(subsets, total_size=60000):
     dataset = mnist_train()
     subset_sizes = np.full(subsets, total_size // subsets)
     subset_sizes[:total_size % subsets] += 1
@@ -72,7 +72,7 @@ def random_subsets(subsets, total_size):
     return subsets
 
 
-def random_trainsets(subsets, total_size):
+def random_trainsets(subsets, total_size=60000):
     subsets = random_subsets(subsets, total_size)
     return [DataLoader(subset, **kwargs) for subset in subsets]
 
@@ -85,9 +85,3 @@ def get_targets(dataloader) -> np.ndarray:
         targets[y:end] = target
         y = end
     return targets
-
-
-if __name__ == '__main__':
-    np.random.seed(0)
-    d = randomized_testset(10000)
-    print(get_targets(d))
