@@ -83,17 +83,18 @@ class MnistNN(Model):
         with torch.no_grad():
             y = 0
             for inputs, targets in test_loader:
-                end = y + len(inputs)
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
+                end = y + len(inputs)
                 outputs[y:end] = net(inputs).cpu()
                 y = end
         return outputs
 
 
 def load_models(model_dir):
+    return list(model_loader(model_dir))
+
+
+def model_loader(model_dir):
     dir_path = f"models/{model_dir}"
-    models = []
     for file in os.listdir(dir_path):
-        model = MnistNN(state_path=f"{dir_path}/{file}")
-        models.append(model)
-    return models
+        yield MnistNN(state_path=f"{dir_path}/{file}")

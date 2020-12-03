@@ -9,29 +9,28 @@ import datetime
 
 
 def train_models(training_subsets, out_dir, epochs=5, lr=1.0, use_cache=True, init_model=None):
-    out_dir_path = f"models/{out_dir}"
-    if not os.path.exists(out_dir_path):
-        os.makedirs(out_dir_path)
+    out_dir = f"models/{out_dir}"
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     times = []
     for i, train_loader in enumerate(training_subsets):
-        start_time = time.time()
-
-        path = f"{out_dir_path}/model{i}.pt"
-        if os.path.isfile(path) and use_cache:
+        out_file = f"{out_dir}/model{i}.pt"
+        if os.path.isfile(out_file) and use_cache:
             print(f"Model {i} found in cache - {i + 1}/{len(training_subsets)} models trained")
             continue
         else:
+            start_time = time.time()
             if init_model is None:
                 model = MnistNN()
             else:
                 model = copy.deepcopy(init_model)
             model.train(train_loader, epochs=epochs, lr=lr)
-            torch.save(model.net.state_dict(), path)
+            torch.save(model.net.state_dict(), out_file)
 
             times.append(time.time() - start_time)
             avg_time = np.mean(times)
-            time_left = np.round((len(training_subsets) - i) * avg_time)
+            time_left = np.round((len(training_subsets) - 1 - i) * avg_time)
 
             status = f"Model {i} done training  - {i + 1}/{len(training_subsets)} models trained"
             status += f" (avg. time: {'{:.2f}s, time left: {}'.format(avg_time, datetime.timedelta(seconds=time_left))}"
@@ -50,8 +49,9 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
 
+    my_out_dir = f"m{models}-ts{train_size}-e{my_epochs}-lr{my_lr}"
+
     for i in range(1):
-        my_out_dir = f"m{models}-ts{train_size}-e{my_epochs}-lr{my_lr}"
         if same_init:
             my_out_dir += '-init'
             my_init_model = MnistNN()
