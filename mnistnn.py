@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 class MnistNN(Model):
@@ -21,15 +22,16 @@ class MnistNN(Model):
             state_dict = torch.load(state_path)
             self.net.load_state_dict(state_dict)
 
-    def train(self, train_loader, epochs=10, verbose=False, plot=False) -> None:
+    def train(self, train_loader, lr=1.0, epochs=5, verbose=False, plot=False, val_loader=None) -> None:
         net = self.net.to(self.device)
-        optimizer = optim.Adam(self.net.parameters())
-        avg_epoch_loss = []
+        optimizer = optim.SGD(self.net.parameters(), lr=lr)
+        epoch_train_losses = []
+        epoch_val_losses = []
 
         for epoch in range(epochs):
             if verbose:
                 print("Epoch:", epoch)
-            losses = []
+            train_losses = []
             for (inputs, targets) in train_loader:
                 net.train()
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -38,11 +40,14 @@ class MnistNN(Model):
                 one_hot_targets = F.one_hot(targets, num_classes=10).float()
                 loss = F.mse_loss(outputs, one_hot_targets)
                 loss.backward()
-                losses.append(loss.item())
+                train_losses.append(loss.item())
                 optimizer.step()
+            epoch_train_losses.append(np.mean(train_losses))
+            if val_loader is not None:
+                epoch_val_losses.append(self.test_loss(val_loader))
             if plot:
-                avg_epoch_loss.append(np.mean(losses))
-                plt.plot(avg_epoch_loss, c="blue")
+                plt.plot(epoch_train_losses, c="blue")
+                plt.plot(epoch_val_losses, c="red")
                 plt.show()
 
         self.net = net.cpu()
@@ -61,15 +66,15 @@ class MnistNN(Model):
     def test_loss(self, test_loader) -> float:
         net = self.net.to(self.device)
         net.eval()
-        avg_loss = 0.0
+        losses = []
         with torch.no_grad():
             for i, (inputs, targets) in enumerate(test_loader):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 output = net(inputs)
                 one_hot_targets = F.one_hot(targets, num_classes=10).float()
                 loss = F.mse_loss(output, one_hot_targets).item()
-                avg_loss = (loss + i * avg_loss) / (i + 1)  # Cumulative average
-        return avg_loss
+                losses.append(loss)
+        return float(np.mean(losses))
 
     def outputs(self, test_loader) -> np.ndarray:
         net = self.net.to(self.device)
@@ -83,3 +88,12 @@ class MnistNN(Model):
                 outputs[y:end] = net(inputs).cpu()
                 y = end
         return outputs
+
+
+def load_models(model_dir):
+    dir_path = f"models/{model_dir}"
+    models = []
+    for file in os.listdir(dir_path):
+        model = MnistNN(state_path=f"{dir_path}/{file}")
+        models.append(model)
+    return models

@@ -1,8 +1,7 @@
-import torch
 import os
 import numpy as np
 from datasets import get_targets
-from mnistnn import MnistNN
+import mnistnn
 from datasets import testset
 
 
@@ -12,7 +11,7 @@ def test(model_dir, test_loader):
     if not os.path.exists(out_dir_path):
         os.makedirs(out_dir_path)
 
-    models = load_models(model_dir)
+    models = mnistnn.load_models(model_dir)
 
     outputs_path = f"test_results/{model_dir}/outputs.npy"
     targets_path = f"test_results/{model_dir}/targets.npy"
@@ -39,14 +38,6 @@ def test(model_dir, test_loader):
     return outputs, targets
 
 
-def load_models(model_dir):
-    dir_path = f"models/{model_dir}"
-    models = []
-    for file in os.listdir(dir_path):
-        model = MnistNN(state_path=f"{dir_path}/{file}")
-        models.append(model)
-    return models
-
-
 if __name__ == '__main__':
-    outputs1, targets1 = test("m1-ts12000-e5", testset(10000))
+    for i in range(10):
+        test(f"m375-ts12000-e5-lr1.0-v{i}", testset())

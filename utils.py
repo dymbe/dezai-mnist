@@ -1,5 +1,5 @@
 import numpy as np
-import copy
+from mnistnn import MnistNN
 
 
 def mv(outputs):
@@ -10,26 +10,26 @@ def mv(outputs):
     return predictions
 
 
-def average_models(models):
-    model = copy.deepcopy(models[0])
-    sd = model.state_dict()
+def average_models(models) -> MnistNN:
+    model = MnistNN()
+    sd = model.net.state_dict()
     for key in sd:
-        sd[key] = sum([model.state_dict()[key] for model in models]) / len(models)
-    model.load_state_dict(sd)
+        sd[key] = sum([m.net.state_dict()[key] for m in models]) / len(models)
+    model.net.load_state_dict(sd)
     return model
 
 
 def wmv_cma(outputs, targets):  # https://en.wikipedia.org/wiki/Moving_average#Cumulative_moving_average
     weights = np.ones(outputs.shape[1])
     predictions = np.empty(targets.shape)
-    for y, _ in enumerate(targets):
+    for y, target in enumerate(targets):
         if np.all(weights == 0):
             votes = np.sum(outputs[y], axis=0)
         else:
-            votes = np.sum((outputs[y].T * weights).T, axis=0)
-        predictions[y, 0] = votes.argmax()
+            votes = np.sum((outputs[y].T * np.square(weights)).T, axis=0)
+        predictions[y] = votes.argmax()
 
-        scores = outputs[y].argmax(axis=1) == targets[y]
+        scores = outputs[y].argmax(axis=1) == target
         weights = (scores + y * weights) / (y + 1)  # Cumulative moving average score
     return predictions
 
@@ -39,16 +39,14 @@ def wmv_sma(outputs, targets, n=50):  # https://en.wikipedia.org/wiki/Moving_ave
     predictions = np.empty(targets.shape)
     all_scores = []
 
-    for y, _ in enumerate(targets):
+    for y, target in enumerate(targets):
         if np.all(weights == 0):
             votes = np.sum(outputs[y], axis=0)
         else:
             votes = np.sum((outputs[y].T * weights).T, axis=0)
 
         predictions[y] = votes.argmax()
-        #print("\t".join(["{:.2f}".format(x) for x in list(votes)]), "->", int(predictions[y][0]), ":", int(targets[y][0]))
-
-        new_score = 1 * (outputs[y].argmax(axis=1) == targets[y])
+        new_score = 1 * (outputs[y].argmax(axis=1) == target)
 
         if y < n:
             weights = (new_score + y * weights) / (y + 1)
@@ -64,10 +62,12 @@ def wmv_sma(outputs, targets, n=50):  # https://en.wikipedia.org/wiki/Moving_ave
 def wmv(outputs, targets, b):
     weights = np.ones(outputs.shape[1])
     predictions = np.empty(targets.shape)
-    for y, _ in enumerate(targets):
-        votes = np.sum((outputs[y].T * weights).T, axis=0)
-        predictions[y] = votes.argmax()
-        weights *= 1 - b * (outputs[y].argmax(axis=1) != targets[y])
+    for y, target in enumerate(targets):
+        count = np.zeros(outputs.shape[2])
+        votes = outputs[y].argmax(axis=1)
+        np.add.at(count, votes, weights)
+        predictions[y] = count.argmax()
+        weights *= 1 - b * (outputs[y].argmax(axis=1) != target)
     return predictions
 
 

@@ -43,39 +43,71 @@ def plot_lines(lines):
     plt.show()
 
 
-def plot_vote(votes, image, label):
-    x = np.arange(len(votes))
+def plot_bars(ys, bars_labels, image, ground_truth):
+    if len(ys.shape) < 2:
+        ys = ys.reshape(1, -1)
+
+    x = np.arange(ys.shape[1])
+
     fig, axarr = plt.subplots(1, 2)
-    axarr[0].bar(x, votes)
+    total_width = 0.8
+    single_width = total_width / len(ys)
+
+    for i, y in enumerate(ys):
+        x_off = x - total_width / 2 + i * single_width
+        axarr[0].bar(x_off, y, width=single_width, label=labels[i])
+
     axarr[0].set_xticks(x)
     axarr[0].set_ylim(0, 1)
     axarr[0].set_yticks(np.linspace(0, 1, 11))
-    axarr[0].yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
-    axarr[0].set_xlabel("Digit")
-    axarr[0].set_ylabel("Share of votes")
+    #axarr[0].yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+    axarr[0].set_xlabel("Label")
+    axarr[0].set_ylabel("Probability")
+    axarr[0].legend()
     axarr[1].imshow(image, cmap='gray')
     axarr[1].axis("off")
-    fig.suptitle(f"Ground truth = {label}")
+    fig.suptitle(f"Ground truth = {ground_truth}")
 
     plt.show()
 
 
 if __name__ == '__main__':
     from datasets import testset
-    from utils import mv
+    import mnistnn
+    from utils import mv, average_models
 
-    project = "m375-ts12000-e5"
+    project = "m375-ts12000-e5-lr1.0-init-v0"
 
-    ds = testset(10000)
     outputs = np.load(f"test_results/{project}/outputs.npy")
     targets = np.load(f"test_results/{project}/targets.npy")
 
+    models = mnistnn.load_models(project)
+    fed_model = average_models(models)
+
+    ds = testset(10000)
+
+    fed_outputs = fed_model.outputs(ds)
+    #fed_predictions = fed_outputs.argmax(axis=1)
+
+    #print("np.mean(fed_predictions == targets) =", np.mean(fed_predictions == targets))
+
+    mean_vote = outputs.mean(axis=1)
+    mean_vote_predictions = mean_vote.argmax(axis=1)
+
+    predictions = outputs.argmax(axis=2)
+    scores = np.mean(predictions == targets.reshape(-1, 1), axis=0)
+
+    print("np.mean(scores) =", np.mean(scores))
+    print("np.std(scores) =", np.std(scores))
+
     print(np.mean(mv(outputs) == targets))
 
+    labels = ["Aggregated model output",
+              "All models mean outputs"]
+
     for i, (img_tensor, img_label) in enumerate(ds.dataset):
-        preds = outputs[i].argmax(axis=1)
-        counts = np.bincount(preds)
-        counts = counts / np.sum(counts)
+        votes = np.bincount(predictions[i], minlength=10)
+        vote_shares = votes / np.sum(votes)
         my_image = img_tensor.squeeze().numpy()
-        plot_vote(counts, my_image, img_label)
+        plot_bars(np.vstack((fed_outputs[i], mean_vote[i])), labels, my_image, img_label)
         input(f"Image {i} - Press any key to continue")

@@ -1,23 +1,23 @@
 import torch
-from torch.utils.data import DataLoader
 import numpy as np
-from datasets import random_trainsets, sorted_testset, testset, randomized_testset
-from mnistnn import MnistNN
-from utils import mv, wmv, wmv_sma, wmv_cma, mv
 import matplotlib.pyplot as plt
+from datasets import random_trainsets, sorted_testset, testset, random_subsets
+from mnistnn import MnistNN
+from testrunner import load_models
+from utils import mv, wmv, wmv_sma, wmv_cma, mv_wrong
 
 
-def outputs_gpu_models(gpu_models, device, test_loader):
-    outputs = np.empty((len(test_loader.dataset), len(gpu_models), 10))
-    gpu_models = [model.net.to(device) for model in gpu_models]
-    all_targets = np.empty((len(test_loader.dataset), 1))
+def outputs_gpu_models(models, device, test_loader):
+    outputs = np.empty((len(test_loader.dataset), len(models), 10))
+    models = [model.net.to(device) for model in models]
+    all_targets = np.empty((len(test_loader.dataset)))
 
     y = 0
     for inputs, targets in test_loader:
         inputs, targets = inputs.to(device), targets.to(device)
         end = y + len(inputs)
-        all_targets[y:end, 0] = targets.cpu()
-        for x, model in enumerate(gpu_models):
+        all_targets[y:end] = targets.cpu()
+        for x, model in enumerate(models):
             model.eval()
             with torch.no_grad():
                 outputs[y:end, x] = model(inputs).cpu()
@@ -25,24 +25,22 @@ def outputs_gpu_models(gpu_models, device, test_loader):
     return outputs, all_targets
 
 
-def experiment(gpu_models, device, test_loader, uniform_test=True):
-    outputs, targets = outputs_gpu_models(gpu_models, device, test_loader)
+def experiment(models, device, test_loader, uniform_test=True):
+    outputs, targets = outputs_gpu_models(models, device, test_loader)
     predictions = outputs.argmax(axis=2)
 
-    x = np.linspace(1, outputs.shape[0], num=outputs.shape[0]).reshape(-1, 1)
+    x = np.linspace(1, outputs.shape[0], num=outputs.shape[0])
 
     b = 0.1
     n_sma = 50
 
-    mv_scores = np.cumsum(mv(outputs) == targets, axis=0) / x
+    mv_scores = np.cumsum(mv_wrong(outputs) == targets.reshape(-1), axis=0) / x.reshape(-1)
     wmv_scores = np.cumsum(wmv(outputs, targets, b=b) == targets, axis=0) / x
     wmv_sma_scores = np.cumsum(wmv_sma(outputs, targets, n=n_sma) == targets, axis=0) / x
-    wmv_cma_scores = np.cumsum(wmv_cma(outputs, targets) == targets, axis=0) / x
-    all_model_scores = np.cumsum(predictions == targets, axis=0) / x
-    mean_model_scores = np.mean(all_model_scores, axis=1)
-    std_model_scores = np.std(all_model_scores, axis=1)
-
-    x = x.reshape(-1)
+    #wmv_cma_scores = np.cumsum(wmv_cma(outputs, targets) == targets, axis=0) / x
+    #all_model_scores = np.cumsum(predictions == targets.reshape(-1, 1), axis=0) / x
+    #mean_model_scores = np.mean(all_model_scores, axis=1)
+    #std_model_scores = np.std(all_model_scores, axis=1)
 
     if not uniform_test:
         label_borders = [0] + [indices.max() for indices in [np.where(targets == i)[0] for i in range(10)]]
@@ -58,8 +56,8 @@ def experiment(gpu_models, device, test_loader, uniform_test=True):
     plt.plot(x, 100 * wmv_scores, c="black", label=f"Weighted majority vote, b={b}")
     plt.plot(x, 100 * wmv_sma_scores, c="green", label=f"Weighted majority vote (SMA), n={n_sma}")
     #plt.plot(x, 100 * wmv_cma_scores, c="orange", label="Weighted majority vote (CMA)")
-    plt.errorbar(x, 100 * mean_model_scores, yerr=(100 * std_model_scores), ecolor="lightblue", c="blue",
-                 label="Average of individual models")
+    #plt.errorbar(x, 100 * mean_model_scores, yerr=(100 * std_model_scores), ecolor="lightblue", c="blue",
+    #             label="Average of individual models")
 
     plt.legend()
     #plt.title(f"|x_train|={trainset_size}, |x_test|={testset_size}, batch_size={batch_size}, batches_per_client={batches_per_client}")
@@ -79,30 +77,14 @@ def experiment(gpu_models, device, test_loader, uniform_test=True):
 
 
 def main():
-    save = False
     torch.manual_seed(0)
     np.random.seed(0)
     device = torch.device("cuda")
-    n_clients = 10
-    train_size = 32 * n_clients
-
-    uniform_mnist_subsets(n_clients, train_size)
     test_loader = testset(10000)
 
-    gpu_models = [MnistNN(device) for _ in range(n_clients)]
+    models = load_models("m375-ts12000-e5")
 
-    if save:
-        for i, (model, train_loader) in enumerate(zip(gpu_models, uniform_mnist_subsets(n_clients, train_size))):
-            model.train(train_loader)
-            torch.save(model.net.state_dict(), f"data/models/state-{i}.pt")
-        print("Done!")
-        return
-    else:
-        for i in range(len(gpu_models)):
-            model = MnistNN(device)
-            model.net.load_state_dict(torch.load(f"data/models/state-{i}.pt"))
-            gpu_models[i] = model
-    experiment(gpu_models, device, test_loader)
+    experiment(models, device, test_loader)
 
 
 if __name__ == '__main__':
