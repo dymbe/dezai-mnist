@@ -76,10 +76,13 @@ class MnistNN(Model):
                 losses.append(loss)
         return float(np.mean(losses))
 
-    def outputs(self, test_loader) -> np.ndarray:
+    def outputs(self, test_loader, preloaded_data_size=None) -> np.ndarray:
         net = self.net.to(self.device)
         net.eval()
-        outputs = np.empty((len(test_loader.dataset), 10))
+        if preloaded_data_size is None:
+            outputs = np.empty((len(test_loader.dataset), 10))
+        else:
+            outputs = np.empty((preloaded_data_size, 10))
         with torch.no_grad():
             y = 0
             for inputs, targets in test_loader:

@@ -1,7 +1,8 @@
 import numpy as np
 from datasets import testset
 import mnistnn
-from utils import mv, wmv, wmv_cma, average_models
+from utils import mv, wmv, wmv_cma, load_and_average_models
+from testrunner import get_results
 
 
 def score(output, targets):
@@ -30,27 +31,27 @@ if __name__ == '__main__':
     means = []
     feds = []
     mvs = []
+    wmvs = []
 
     for i in range(10):
-        project = f"m375-ts12000-e5-lr1.0-init-v{i}"
+        project = f"m1875-ts60000-e5-lr1.0-v{i}"
 
-        outputs = np.load(f"test_results/{project}/outputs.npy")
+        outputs, targets = get_results(project, 1875)
 
         if np.isnan(outputs).any():
             raise Exception("NaN-values found!")
 
-        targets = np.load(f"test_results/{project}/targets.npy")
-
         model_scores = scores(outputs, targets)
 
-        models = mnistnn.load_models(project)
-        fed_model = average_models(models)
+        model_loader = mnistnn.model_loader(project)
+        fed_model = load_and_average_models(model_loader)
         fed_outputs = fed_model.outputs(xs)
 
         means.append(model_scores.mean())
 
         feds.append(score(fed_outputs, targets))
         mvs.append(mv_score(outputs, targets))
+        wmvs.append(wmv_score(outputs, targets, b=0.1))
 
     print("mean mean", np.mean(means))
     print("mean std", np.std(means))
@@ -60,3 +61,6 @@ if __name__ == '__main__':
 
     print("mv mean", np.mean(mvs))
     print("mv std", np.std(mvs))
+
+    print("wmv mean", np.mean(wmvs))
+    print("wmv std", np.std(wmvs))

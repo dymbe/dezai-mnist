@@ -19,6 +19,17 @@ def average_models(models) -> MnistNN:
     return model
 
 
+def load_and_average_models(model_loader) -> MnistNN:
+    avg_model = MnistNN()
+    avg_sd = avg_model.net.state_dict()
+    for i, model in enumerate(model_loader):
+        for key in avg_sd:
+            sd = model.net.state_dict()
+            avg_sd[key] = (sd[key] + i * avg_sd[key]) / (i + 1)
+    avg_model.net.load_state_dict(avg_sd)
+    return avg_model
+
+
 def wmv_cma(outputs, targets):  # https://en.wikipedia.org/wiki/Moving_average#Cumulative_moving_average
     weights = np.ones(outputs.shape[1])
     predictions = np.empty(targets.shape)

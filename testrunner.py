@@ -19,6 +19,8 @@ def test(project_name, test_loader, num_models, use_cache=True):
     np.save(targets_path, targets)
 
     times = []
+    device = torch.device("cuda")
+    preloaded_batches = [(inputs.to(device), targets.to(device)) for inputs, targets in test_loader]
 
     for i, model in enumerate(mnistnn.model_loader(project_name)):
         out_file = f"{out_dir}/model{i}.npy"
@@ -28,7 +30,7 @@ def test(project_name, test_loader, num_models, use_cache=True):
         else:
             start_time = time.time()
 
-            out = model.outputs(test_loader)
+            out = model.outputs(preloaded_batches, preloaded_data_size=len(test_loader.dataset))
             np.save(out_file, out)
 
             times.append(time.time() - start_time)
@@ -69,10 +71,9 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
 
-    project_name = f"m{num_models}-ts{train_size}-e{epochs}-lr{lr}"
-    if same_init:
-        project_name += '-init'
-
-    for i in range(1):
+    for i in range(10):
+        project_name = f"m{num_models}-ts{train_size}-e{epochs}-lr{lr}"
+        if same_init:
+            project_name += '-init'
         project_name += f"-v{i}"
         test(project_name, testset(), num_models)

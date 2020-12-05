@@ -17,7 +17,7 @@ def train_models(training_subsets, out_dir, epochs=5, lr=1.0, use_cache=True, in
     for i, train_loader in enumerate(training_subsets):
         out_file = f"{out_dir}/model{i}.pt"
         if os.path.isfile(out_file) and use_cache:
-            print(f"Model {i} found in cache - {i + 1}/{len(training_subsets)} models trained")
+            print("Model {:>4} found in cache - {:>4}/{} models trained".format(i, i + 1, len(training_subsets)))
             continue
         else:
             start_time = time.time()
@@ -32,7 +32,7 @@ def train_models(training_subsets, out_dir, epochs=5, lr=1.0, use_cache=True, in
             avg_time = np.mean(times)
             time_left = np.round((len(training_subsets) - 1 - i) * avg_time)
 
-            status = f"Model {i} done training  - {i + 1}/{len(training_subsets)} models trained"
+            status = "Model {:>4} done training  - {:4}/{} models trained".format(i, i + 1, len(training_subsets))
             status += f" (avg. time: {'{:.2f}s, time left: {}'.format(avg_time, datetime.timedelta(seconds=time_left))}"
             print(status)
 
@@ -49,9 +49,8 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
 
-    my_out_dir = f"m{models}-ts{train_size}-e{my_epochs}-lr{my_lr}"
-
-    for i in range(1):
+    for i in range(10):
+        my_out_dir = f"m{models}-ts{train_size}-e{my_epochs}-lr{my_lr}"
         if same_init:
             my_out_dir += '-init'
             my_init_model = MnistNN()
